@@ -1,9 +1,0 @@
-Informazioni sul dataset:
-
-Questo database contiene 279 attributi, 206 dei quali sono lineari e il resto sono nominali.
-
-Per quanto riguarda lo studio di H. Altay Guvenir: "L'obiettivo è quello di distinguere tra la presenza e l'assenza di aritmia cardiaca e di eventualmente classificarlo in uno dei 16 gruppi. In particolare...
-	- la classe 01 si riferisce alle classi ECG 'normali'
-	- da 02 a 15 si riferisce a diverse classi di aritmia
-	- la classe 16 si riferisce al resto di quelle non classificate. 
-Per il momento, esiste un programma che fa una tale classificazione. Tuttavia ci sono differenze tra il cardiologo e la classificazione computerizzata. Prendendo il cardiologo come un gold standard abbiamo l'obiettivo di ridurre al minimo questa differenza per mezzo di strumenti di machine learning."
