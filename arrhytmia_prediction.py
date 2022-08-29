@@ -26,7 +26,7 @@ warnings.filterwarnings('ignore')
 sns.set_style("white")
 
 #Set True in order to show plots, tables and data details
-show_data_analysis = False
+show_data_analysis = True
 #%%
 """########################################################################################################"""
 
@@ -36,24 +36,22 @@ def simple_plot(values, x_label, y_label):
     plt.ylabel(y_label)
     plt.show()
 
-def countplot_bars(data):
-    
-    # set the figure size and the background color
-    plt.figure(figsize=(5, 6))
+def countplot_bars(data, title, i):
+    plt.figure(figsize=(7, 8))
+    ax = sns.countplot(x=data[i], palette="flare") # alt_palette = "Set2"
+    ax.set_title(title, pad=13, fontsize=13)
+    sns.despine(right=True)
+
+def countplot_bars_series(data, title):
+    plt.figure(figsize=(7, 8))
+    ax = sns.countplot(x=data, palette="flare") # alt_palette = "Set2"
+    ax.set_title(title, pad=13, fontsize=13)
     
     total = float(len(data))
-    ax = sns.countplot(x=data['class'], palette="flare")
-
-    # for every column of the countplot (we need to iterate to put the percentage above the columns)
     for p in ax.patches:
+       height = p.get_height()
+       ax.text(p.get_x()+p.get_width()/2.,height + 3,'{:1.1f}%'.format((height/total)*100), ha="center")
         
-        # get the height of the column to set the height of the bbox
-        height = p.get_height()
-        
-        # add the bbox adjusting the position and fromat
-        ax.text(p.get_x()+p.get_width()/2.,height + 3,'{:1.1f}%'.format((height/total)*100), ha="center")
-
-    ax.set_title('Target variable distribution', pad=15, fontsize=10)
     sns.despine(right=True)
 
 def pair_grid(df, _vars, _hue):
@@ -62,26 +60,33 @@ def pair_grid(df, _vars, _hue):
     g.add_legend()
     
 def plot_conf_matrix(y_test, y_pred):
-    
+    """Multiclass data will be treated as if binarized under a one-vs-rest transformation. 
+       Returned confusion matrices will be in the order of sorted unique labels in the union of (y_true, y_pred)"""
     conf_mat_all = multilabel_confusion_matrix(y_test, y_pred)
+    y_tmp = np.array(y_test.drop_duplicates())
+    i = 0
+    
     for conf_mat in conf_mat_all:
         fig, ax = plt.subplots(figsize=(8, 6))
         sns.heatmap(np.eye(2), annot=conf_mat, fmt='g', annot_kws={'size': 40},
-                    cmap=sns.color_palette(['mediumslateblue', 'palegreen'], as_cmap=True), cbar=False,
+                    cmap=sns.color_palette(['#df9fbf', '#993366'], as_cmap=True), cbar=False,
                     yticklabels=['True', 'False'], xticklabels=['True', 'False'], ax=ax)
         
         ax.xaxis.tick_top()
         ax.xaxis.set_label_position('top')
-        ax.tick_params(labelsize=20, length=0)
-    
-        ax.set_title('Confusion Matrix', size=24, pad=20)
-        ax.set_xlabel('Actual Values', size=20)
-        ax.set_ylabel('Predicted Values', size=20)
+        ax.tick_params(labelsize=15, length=0)
+        
+        title = 'Confusion Matrix: ' + str(y_tmp[i])
+        i = i + 1
+        ax.set_title(title, size=24, pad=20)
+        
+        ax.set_xlabel('Test Values', size=18)
+        ax.set_ylabel('Predicted Values', size=18)
         
         additional_texts = ['True Positive', 'False Positive', 'False Negative', 'True Negative']
         for text_elt, additional_text in zip(ax.texts, additional_texts):
             ax.text(*text_elt.get_position(), '\n' + additional_text, 
-                    color=text_elt.get_color(), ha='center', va='top', size=20)
+                    color=text_elt.get_color(), ha='center', va='top', size=10)
 
 def check_duplicated_rows(df):
     if df.duplicated().sum():
@@ -216,12 +221,12 @@ if show_data_analysis:
     class_distribution_binary = final_df.copy()
     class_distribution_binary["class"] = class_distribution_binary["class"].astype('str')
     class_distribution_binary["class"] = np.where(class_distribution_binary["class"] == "1", "normal", "arrythmia")
-    countplot_bars(class_distribution_binary)
+    countplot_bars(class_distribution_binary, 'Target distribution', 'class')
 
     class_distribution = final_df.copy()
     #In order to remove normal class
     class_distribution = class_distribution.drop(class_distribution[class_distribution["class"] == 1].index)
-    countplot_bars(class_distribution)
+    countplot_bars(class_distribution,'Arrhytmia classes distribution', 'class')
 
     """Heavily biased towards the normal cases (245/452), it will be perform over sampling to balance the classes.
        It will be only perform on training data to avoid information leakage.
@@ -319,7 +324,7 @@ for model, model_name, hparams in zip(models, models_names, models_hparams):
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""------------------------------------------- #3 - Ensemble -------------------------------------------"""
+"""------------------------------------------- #3 - Ensemble ------------------------------------------"""
 # Sort estimators by the balanced accuracy metric
 estimators.sort(key=lambda i:i[1],reverse=True)
 
@@ -345,7 +350,7 @@ estimators.append( ('Stacking Classifier', np.mean(scores['test_accuracy']), clf
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""----------------------------------------- #5 - Final Model -----------------------------------------"""
+"""----------------------------------------- #4 - Final Model -----------------------------------------"""
 estimators.sort(key=lambda i:i[1],reverse=True)
 final_model = estimators[0][2]
 final_model_accuracy = estimators[0][1]
@@ -354,18 +359,18 @@ print('\n-----> The Final Model selected is:', final_model_name, '<-----')
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""---------------------------------------- #6 - Final Training ---------------------------------------"""
+"""---------------------------------------- #5 - Final Training ---------------------------------------"""
 final_model.fit(X_train, y_train)
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""------------------------------------- #7 - Test [Pre-processing] -----------------------------------"""
+"""------------------------------------- #6 - Test [Pre-processing] -----------------------------------"""
 # Feature scaling
 X_test = scaler.transform(X_test)
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""-------------------------------------------- #8 - Testing ------------------------------------------"""
+"""-------------------------------------------- #7 - Testing ------------------------------------------"""
 y_pred = final_model.predict(X_test)
 
 print('\n----------------------------> FINAL TESTING <----------------------------')
@@ -376,8 +381,12 @@ print('---> F1-Score is ', f1_score(y_test, y_pred, average='weighted'))
 
 """----------------------------------------------------------------------------------------------------"""
 #%%    
-"""--------------------------------------- #9 - Confusion Matrix --------------------------------------"""
-plot_conf_matrix(y_test, y_pred)
+"""--------------------------------------- #8 - Confusion Matrix --------------------------------------"""
+if show_data_analysis:
+    countplot_bars_series(y_pred,'y prediction')
+    countplot_bars_series(y_test,'y test')
+    
+    plot_conf_matrix(y_test, y_pred)
 
 #%%
 
