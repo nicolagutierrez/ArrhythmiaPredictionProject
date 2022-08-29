@@ -17,20 +17,17 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.ensemble import StackingClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, multilabel_confusion_matrix
 
 import time
 from datetime import timedelta
 
-warnings.simplefilter(action='ignore', category=FutureWarning)
-warnings.simplefilter(action='ignore', category=UserWarning)
-
+warnings.filterwarnings('ignore')
 sns.set_style("white")
-kws = dict(edgecolor="black")
 
 #Set True in order to show plots, tables and data details
-show_data_analysis = True
-
+show_data_analysis = False
+#%%
 """########################################################################################################"""
 
 def simple_plot(values, x_label, y_label):
@@ -63,6 +60,28 @@ def pair_grid(df, _vars, _hue):
     g = sns.PairGrid(df, vars=_vars, hue=_hue, palette="rocket_r")
     g.map(plt.scatter, alpha=0.8)
     g.add_legend()
+    
+def plot_conf_matrix(y_test, y_pred):
+    
+    conf_mat_all = multilabel_confusion_matrix(y_test, y_pred)
+    for conf_mat in conf_mat_all:
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sns.heatmap(np.eye(2), annot=conf_mat, fmt='g', annot_kws={'size': 40},
+                    cmap=sns.color_palette(['mediumslateblue', 'palegreen'], as_cmap=True), cbar=False,
+                    yticklabels=['True', 'False'], xticklabels=['True', 'False'], ax=ax)
+        
+        ax.xaxis.tick_top()
+        ax.xaxis.set_label_position('top')
+        ax.tick_params(labelsize=20, length=0)
+    
+        ax.set_title('Confusion Matrix', size=24, pad=20)
+        ax.set_xlabel('Actual Values', size=20)
+        ax.set_ylabel('Predicted Values', size=20)
+        
+        additional_texts = ['True Positive', 'False Positive', 'False Negative', 'True Negative']
+        for text_elt, additional_text in zip(ax.texts, additional_texts):
+            ax.text(*text_elt.get_position(), '\n' + additional_text, 
+                    color=text_elt.get_color(), ha='center', va='top', size=20)
 
 def check_duplicated_rows(df):
     if df.duplicated().sum():
@@ -84,6 +103,7 @@ def imputation(df):
 
 """########################################################################################################"""
 #%%
+"""--------------------------------------- #0 - Pre-Processing ----------------------------------------"""
 starting_time = time.time() #Start data pre-processing & EDA
 
 df = pd.read_csv("./data/arrhythmia.data",header=None)
@@ -163,8 +183,9 @@ columns_names=["Age","Sex","Height","Weight","QRS_Dur",
 #Adding Column names to dataset
 final_df.columns = columns_names
 
+"""----------------------------------------------------------------------------------------------------"""
 #%%
-"""------------------------------------- #0 - EDA & PreProcessing -------------------------------------"""
+"""--------------------------------------------- #1 - EDA ---------------------------------------------"""
 """Analyzing dataset to summarize their main characteristics.
     Making List of all the type of Arrythmia corresponsing to their class label"""
 
@@ -258,7 +279,7 @@ print("\n---------- Elapsed time for EDA & pre-processing:",timedelta(seconds=en
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""--------------------------------------- #1 - CV : GridSearch ---------------------------------------"""
+"""--------------------------------------- #2 - CV : GridSearch ---------------------------------------"""
 models = [LogisticRegression(class_weight='balanced', random_state=42),
           SVC(class_weight='balanced', probability=True, random_state=42),
           KNeighborsClassifier(weights='distance'),
@@ -269,7 +290,7 @@ models_names = ['Logistic Regression',
                 'K Nearest Neighbors',
                 'Decision Tree']
 
-models_hparams = [{'solver': ['liblinear', 'saga'], 'penalty': ['l1', 'l2'], 'C': [1e-4, 1e-1, 1.0, 1e1, 1e2]},
+models_hparams = [{'solver': ['saga'], 'penalty': ['l1', 'l2'], 'C': [1e-4, 1e-1, 1.0, 1e1, 1e2]},
                   
                   {'C': [1e-4, 1e-2, 1.0, 1e1, 1e2], 'gamma': ['scale', 1e-2, 1e-3, 1e-4, 1e-5], 'kernel': ['linear', 'rbf', 'sigmoid']},
                   
@@ -284,20 +305,21 @@ for model, model_name, hparams in zip(models, models_names, models_hparams):
     
         print("\n************ ", model_name, " ************")
         starting_time = time.time()
-        clf = GridSearchCV(estimator=model, param_grid=hparams, scoring='accuracy', cv=5)
+        clf = GridSearchCV(estimator=model, param_grid=hparams, scoring='accuracy', cv=7)
         clf.fit(X_train, y_train)
         ending_time = time.time()
         chosen_hparams.append(clf.best_params_)
         estimators.append((model_name, clf.best_score_, clf.best_estimator_))
         
         for hparam in hparams:
-            print('\n----> best value for hyperparameter', hparam, ': ', clf.best_params_.get(hparam))
+            print('\n---> best value for hyperparameter', hparam, ': ', clf.best_params_.get(hparam))
+        print('\n---> Accuracy:  ', clf.best_score_)
             
         print('\n---------- Elapsed time for GridSearch: ', timedelta(seconds=ending_time - starting_time), "\n\n")
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""------------------------------------------- #2 - Ensemble -------------------------------------------"""
+"""------------------------------------------- #3 - Ensemble -------------------------------------------"""
 # Sort estimators by the balanced accuracy metric
 estimators.sort(key=lambda i:i[1],reverse=True)
 
@@ -311,52 +333,53 @@ clf_stack = StackingClassifier(estimators = top3_clfs, final_estimator = Logisti
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""--------------------------------- #3 - CV : Performance Evaluation ---------------------------------"""
-
-perf_eval_estimators = list()
-for model_tuple in estimators:
-    model_name = model_tuple[0]
-    model = model_tuple[2]
-    scores = cross_validate(model, X_train, y_train, cv=5, scoring=('accuracy'))
-    print('\n----- Cross-validated Balanced Accuracy of {} is: '.format(model_name), np.mean(scores['test_score']), "-----")
-    perf_eval_estimators.append((model_name, np.mean(scores['test_score']), model))
-
+"""--------------------------------- #4 - CV : Performance Evaluation ---------------------------------"""
+print("\n************ Stacking Model ************")
 # Cross Validation for Stacking Ensemble
-scores = cross_validate(clf_stack, X_train, y_train, cv=5, scoring=('accuracy'))
-print('\n----- Cross-validated Balanced Accuracy of Stacking Model is ', np.mean(scores['test_score']), "-----\n")
+scores = cross_validate(clf_stack, X_train, y_train, cv=7, scoring=('f1_weighted', 'accuracy'))
+#print('---> Cross-validated Accuracy of Stacking Model is ', np.mean(scores['test_score']))
+print('The cross-validated weighted F1-score of the Stacking Ensemble is ', np.mean(scores['test_f1_weighted']))
+print('The cross-validated Accuracy of the Stacking Ensemble is ', np.mean(scores['test_accuracy']))
 
-perf_eval_estimators.append( ('Stacking Classifier', np.mean(scores['test_score']), clf_stack))
+estimators.append( ('Stacking Classifier', np.mean(scores['test_accuracy']), clf_stack))
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""----------------------------------------- #4 - Final Model -----------------------------------------"""
-perf_eval_estimators.sort(key=lambda i:i[1],reverse=True)
-final_model = perf_eval_estimators[0][2]
-final_model_accuracy = perf_eval_estimators[0][1]
-final_model_name = perf_eval_estimators[0][0]
+"""----------------------------------------- #5 - Final Model -----------------------------------------"""
+estimators.sort(key=lambda i:i[1],reverse=True)
+final_model = estimators[0][2]
+final_model_accuracy = estimators[0][1]
+final_model_name = estimators[0][0]
 print('\n-----> The Final Model selected is:', final_model_name, '<-----')
-print('------The cross-validated Accuracy is: ', final_model_accuracy)
+
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""---------------------------------------- #5 - Final Training ---------------------------------------"""
+"""---------------------------------------- #6 - Final Training ---------------------------------------"""
 final_model.fit(X_train, y_train)
+
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""------------------------------------- #6 - Test [Pre-processing] -----------------------------------"""
+"""------------------------------------- #7 - Test [Pre-processing] -----------------------------------"""
 # Feature scaling
 X_test = scaler.transform(X_test)
+
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""-------------------------------------------- #7 - Testing ------------------------------------------"""
+"""-------------------------------------------- #8 - Testing ------------------------------------------"""
 y_pred = final_model.predict(X_test)
 
-print('\n--------------------------------------> FINAL TESTING <--------------------------------------')
+print('\n----------------------------> FINAL TESTING <----------------------------')
 print('---> Accuracy is ', accuracy_score(y_test, y_pred))
 print('---> Precision is ', precision_score(y_test, y_pred, average='weighted'))
 print('---> Recall is ', recall_score(y_test, y_pred, average='weighted'))
 print('---> F1-Score is ', f1_score(y_test, y_pred, average='weighted'))
 
+"""----------------------------------------------------------------------------------------------------"""
+#%%    
+"""--------------------------------------- #9 - Confusion Matrix --------------------------------------"""
+plot_conf_matrix(y_test, y_pred)
 
+#%%
 
 
 
