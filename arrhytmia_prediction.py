@@ -10,7 +10,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import GridSearchCV, cross_validate, train_test_split
+from sklearn.model_selection import GridSearchCV, cross_validate, train_test_split, StratifiedKFold
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
@@ -26,7 +26,7 @@ warnings.filterwarnings('ignore')
 sns.set_style("white")
 
 #Set True in order to show plots, tables and data details
-show_data_analysis = True
+show_data_analysis = False
 #%%
 """########################################################################################################"""
 
@@ -39,13 +39,13 @@ def simple_plot(values, x_label, y_label):
 def countplot_bars(data, title, i):
     plt.figure(figsize=(7, 8))
     ax = sns.countplot(x=data[i], palette="flare") # alt_palette = "Set2"
-    ax.set_title(title, pad=13, fontsize=13)
+    ax.set_title(title, pad=18, fontsize=18)
     sns.despine(right=True)
 
 def countplot_bars_series(data, title):
     plt.figure(figsize=(7, 8))
     ax = sns.countplot(x=data, palette="flare") # alt_palette = "Set2"
-    ax.set_title(title, pad=13, fontsize=13)
+    ax.set_title(title, pad=18, fontsize=18)
     
     total = float(len(data))
     for p in ax.patches:
@@ -248,6 +248,8 @@ if show_data_analysis:
 """There are some strong correlation (>0.9) either negative or positive
    There is NO significant orrelation (<0.6) with class (target)"""
 corr_matrix = final_df.corr()
+corr_matrix.to_csv("./extra/correlation_matrix/correlation_matrix.csv")
+
 correlation_list = list(dict())
 for c in corr_matrix.columns:
     for r in corr_matrix.index:
@@ -274,7 +276,26 @@ print("------------------------------------\n")
 # X = final_df.drop(columns=['class']).values
 y = reduced_df["class"]
 X = reduced_df.drop(columns=['class']).values
+
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+"""#KFold Stratification
+df_data = final_df.iloc[:,:-1]
+df_class = final_df.iloc[:,-1] # target -> 'class'
+skf = StratifiedKFold(n_splits=3, random_state=42, shuffle=True)
+for train, test in skf.split(df_data, df_class):
+    strat_train_set = final_df.loc[train]
+    strat_test_set = final_df.loc[test]
+
+if show_data_analysis:
+    countplot_bars(strat_train_set,'Target Train distribution')
+    countplot_bars(strat_test_set,'Target Test distribution')
+
+y_train = strat_train_set['class']
+X_train = strat_train_set.drop(columns=['class']).values
+
+y_test = strat_test_set["class"]
+X_test = strat_test_set.drop(columns=['class']).values"""
 
 scaler = StandardScaler().fit(X_train)
 X_train = scaler.transform(X_train)
@@ -290,14 +311,14 @@ models = [LogisticRegression(class_weight='balanced', random_state=42),
           KNeighborsClassifier(weights='distance'),
           DecisionTreeClassifier(class_weight='balanced', random_state=42)]
           
-models_names = ['Logistic Regression',
+models_names = ['Softmax Regression',
                 'Support Vector Machine',
                 'K Nearest Neighbors',
                 'Decision Tree']
 
 models_hparams = [{'solver': ['saga'], 'penalty': ['l1', 'l2'], 'C': [1e-4, 1e-1, 1.0, 1e1, 1e2]},
                   
-                  {'C': [1e-4, 1e-2, 1.0, 1e1, 1e2], 'gamma': ['scale', 1e-2, 1e-3, 1e-4, 1e-5], 'kernel': ['linear', 'rbf', 'sigmoid']},
+                  {'C': [1e-4, 1e-2, 1.0, 1e1, 1e2], 'gamma': ['scale', 1e-2, 1e-3, 1e-4, 1e-5], 'kernel': ['linear', 'rbf']},
                   
                   {'n_neighbors': list(range(1, 10, 2))},
                   
@@ -330,7 +351,7 @@ estimators.sort(key=lambda i:i[1],reverse=True)
 
 # Get the top 3 classifiers by their accuracy metric
 top3_clfs = list()
-for clf in estimators[0:2]:
+for clf in estimators[0:3]:
     top3_clfs.append((clf[0], clf[2]))
     
 # Instantiate the Stacking Classifier with the top 3 weak learners
