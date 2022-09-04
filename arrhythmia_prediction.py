@@ -41,14 +41,14 @@ def simple_plot(values, x_label, y_label):
 
 def countplot_bars(data, title, i):
     plt.figure(figsize=(7, 8))
-    ax = sns.countplot(x=data[i], palette="rocket_r") # alt_palette = "Set2"
+    ax = sns.countplot(x=data[i], palette="rocket_r")
     ax.set_title(title, pad=18, fontsize=18)
     sns.despine(right=True)
     plt.show()
 
 def countplot_bars_series(data, title):
     plt.figure(figsize=(7, 8))
-    ax = sns.countplot(x=data, palette="flare") # alt_palette = "Set2"
+    ax = sns.countplot(x=data, palette="flare")
     ax.set_title(title, pad=18, fontsize=18)
     
     total = float(len(data))
@@ -141,6 +141,7 @@ def imputation(df):
 """--------------------------------------- #0 - Pre-Processing ----------------------------------------"""
 starting_time = time.time() #Start data pre-processing & EDA
 
+"""The path refers to the workspace ArrhythmiaPredictionProject/"""
 df = pd.read_csv("./data/arrhythmia.data",header=None)
 
 print("\n--------- DATAFRAME'S INFO ---------")
@@ -213,7 +214,8 @@ columns_names=["Age","Sex","Height","Weight","QRS_Dur",
 "V3240","V3241","V3242","V3243","V3244","V3245","V3246","V3247","V3248","V3249",
 "V4250","V4251","V4252","V4253","V4254","V4255","V4256","V4257","V4258","V4259",
 "V5260","V5261","V5262","V5263","V5264","V5265","V5266","V5267","V5268","V5269",
-"V6270","V6271","V6272","V6273","V6274","V6275","V6276","V6277","V6278","V6279","class"]
+"V6270","V6271","V6272","V6273","V6274","V6275","V6276","V6277","V6278","V6279",
+"class"]
 
 #Adding Column names to dataset
 final_df.columns = columns_names
@@ -256,7 +258,7 @@ if show_data_analysis:
     class_distribution = final_df.copy()
     #In order to remove normal class
     class_distribution = class_distribution.drop(class_distribution[class_distribution["class"] == 1].index)
-    countplot_bars(class_distribution,'Arrhytmia classes distribution', 'class')
+    countplot_bars(class_distribution,'Arrhythmia classes distribution', 'class')
 
     """Heavily biased towards the normal cases (245/452), it will be perform over sampling to balance the classes.
        It will be only perform on training data to avoid information leakage.
@@ -298,7 +300,7 @@ print("\n----- REDUCED DATAFRAME'S INFO -----")
 print(reduced_df.info())
 print("------------------------------------\n")
 
-# #Reduce the normal case contribution doesn't improve performances
+# #Reduce the normal cases contribution doesn't improve performances
 # reduced_df = reduced_df.sort_values(by=['class'])
 # for i in range(24):
 #     reduced_df.drop(reduced_df.index[[0]], inplace=True)
@@ -358,6 +360,7 @@ for model, model_name, hparams in zip(models, models_names, models_hparams):
 
 final_estimators = list()
 
+#First part of Performance evaluation [w/o Stacking Classifier]
 for model_est in estimators:
     model_name = model_est[0]
     model = model_est[2]
@@ -411,7 +414,7 @@ final_model.fit(X_train, y_train)
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""---------------------------- #7 - Test [Pre-processing : feature scaling] --------------------------"""
+"""-------------------------------- #7 - Test [Pre-processing : scaling] ------------------------------"""
 X_test = scaler.transform(X_test)
 
 """----------------------------------------------------------------------------------------------------"""
@@ -436,27 +439,3 @@ if show_data_analysis:
 
 print('\n\n', skm.classification_report(y_test,y_pred), '\n\n')
 #%%
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
