@@ -9,15 +9,18 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import sklearn.metrics as skm
+
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import GridSearchCV, cross_validate, train_test_split, StratifiedKFold
+from sklearn.model_selection import GridSearchCV, cross_validate, train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.ensemble import StackingClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, multilabel_confusion_matrix
+from sklearn.utils import shuffle
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, multilabel_confusion_matrix, confusion_matrix
 
 import time
 from datetime import timedelta
@@ -38,9 +41,10 @@ def simple_plot(values, x_label, y_label):
 
 def countplot_bars(data, title, i):
     plt.figure(figsize=(7, 8))
-    ax = sns.countplot(x=data[i], palette="flare") # alt_palette = "Set2"
+    ax = sns.countplot(x=data[i], palette="rocket_r") # alt_palette = "Set2"
     ax.set_title(title, pad=18, fontsize=18)
     sns.despine(right=True)
+    plt.show()
 
 def countplot_bars_series(data, title):
     plt.figure(figsize=(7, 8))
@@ -51,29 +55,55 @@ def countplot_bars_series(data, title):
     for p in ax.patches:
        height = p.get_height()
        ax.text(p.get_x()+p.get_width()/2.,height + 3,'{:1.1f}%'.format((height/total)*100), ha="center")
-        
     sns.despine(right=True)
+    plt.show()
+
+def plot_outliers(df):
+    sns.set(rc={'figure.figsize':(11.7,5.27)})
+    sns.boxplot(data=df[["QRS_Dur","P-R_Int","Q-T_Int","T_Int","P_Int"]])
+    plt.show()
+    """P-R interval: Average duration between onset of P and Q waves in msec., linear
+       Maybe outliers but keep them"""
+    
+    sns.set(rc={'figure.figsize':(11.7,5.27)})
+    sns.boxplot(data=df[["AVR190","AVR191","AVR192","AVR193","AVR194","AVR195","AVR196","AVR197","AVR198","AVR199"]])
+    plt.show()
+    
+    sns.set(rc={'figure.figsize':(11.7,5.27)})
+    sns.boxplot(data=df[["AVL200","AVL201","AVL202","AVL203","AVL204","AVL205","AVL206","AVL207","AVL208","AVL209"]])
+    plt.show()
+    
+    sns.set(rc={'figure.figsize':(11.7,5.27)})
+    sns.boxplot(data=df[["AVF210","AVF211","AVF212","AVF213","AVF214","AVF215","AVF216","AVF217","AVF218","AVF219"]])
+    plt.show()
+    
+    pair_grid(final_df, ['Age', 'Sex', 'Height', 'Weight'], 'Sex')
+    plt.show()
+    
+    print('\nHEIGHT values', sorted(final_df['Height'], reverse=True)[:10]) #not plausible values
+    print('\nWEIGHT values', sorted(final_df['Weight'], reverse=True)[:10], '\n') #plausible values
 
 def pair_grid(df, _vars, _hue):
     g = sns.PairGrid(df, vars=_vars, hue=_hue, palette="rocket_r")
     g.map(plt.scatter, alpha=0.8)
     g.add_legend()
+    plt.show()
+    
     
 def plot_conf_matrix(y_test, y_pred):
     """Multiclass data will be treated as if binarized under a one-vs-rest transformation. 
-       Returned confusion matrices will be in the order of sorted unique labels in the union of (y_true, y_pred)"""
+        Returned confusion matrices will be in the order of sorted unique labels in the union of (y_true, y_pred).
+        true negatives  -> 0,0   false positives -> 0,1
+        false negatives -> 1,0   true positives  -> 1,1"""    
     conf_mat_all = multilabel_confusion_matrix(y_test, y_pred)
-    y_tmp = np.array(y_test.drop_duplicates())
+    y_tmp = sorted(np.array(y_test.drop_duplicates()))
     i = 0
     
     for conf_mat in conf_mat_all:
         fig, ax = plt.subplots(figsize=(8, 6))
-        sns.heatmap(np.eye(2), annot=conf_mat, fmt='g', annot_kws={'size': 40},
-                    cmap=sns.color_palette(['#df9fbf', '#993366'], as_cmap=True), cbar=False,
-                    yticklabels=['True', 'False'], xticklabels=['True', 'False'], ax=ax)
-        
-        ax.xaxis.tick_top()
-        ax.xaxis.set_label_position('top')
+        sns.heatmap(np.eye(2), annot=conf_mat, fmt='g', annot_kws={'size': 35},
+                    cmap=sns.color_palette(['#df9fbf', '#993366'], as_cmap=True), cbar=False, ax=ax)
+
         ax.tick_params(labelsize=15, length=0)
         
         title = 'Confusion Matrix: ' + str(y_tmp[i])
@@ -83,7 +113,7 @@ def plot_conf_matrix(y_test, y_pred):
         ax.set_xlabel('Test Values', size=18)
         ax.set_ylabel('Predicted Values', size=18)
         
-        additional_texts = ['True Positive', 'False Positive', 'False Negative', 'True Negative']
+        additional_texts = ['True Negative', 'False Positive', 'False Negative', 'True Positive']
         for text_elt, additional_text in zip(ax.texts, additional_texts):
             ax.text(*text_elt.get_position(), '\n' + additional_text, 
                     color=text_elt.get_color(), ha='center', va='top', size=10)
@@ -233,10 +263,7 @@ if show_data_analysis:
        There are also 12 different types of arrhythmias and 3 other type of arrthmias are not present in this dataset. [11, 12, 13]"""
 
     #Looking for pairwise relationships and outliers
-    pair_grid(final_df, ['Age', 'Sex', 'Height', 'Weight'], 'Sex')
-
-    max_height_values = sorted(final_df['Height'], reverse=True)[:10] #not plausible values
-    max_weight_values = sorted(final_df['Weight'], reverse=True)[:10] #plausible values
+    plot_outliers(final_df)
 
 #Mean of world height : ~170cm
 final_df['Height']=final_df['Height'].replace(608,170)
@@ -248,7 +275,7 @@ if show_data_analysis:
 """There are some strong correlation (>0.9) either negative or positive
    There is NO significant orrelation (<0.6) with class (target)"""
 corr_matrix = final_df.corr()
-corr_matrix.to_csv("./extra/correlation_matrix/correlation_matrix.csv")
+#corr_matrix.to_csv("./extra/correlation_matrix/correlation_matrix.csv")
 
 correlation_list = list(dict())
 for c in corr_matrix.columns:
@@ -271,31 +298,19 @@ print("\n----- REDUCED DATAFRAME'S INFO -----")
 print(reduced_df.info())
 print("------------------------------------\n")
 
+# #Reduce the normal case contribution doesn't improve performances
+# reduced_df = reduced_df.sort_values(by=['class'])
+# for i in range(24):
+#     reduced_df.drop(reduced_df.index[[0]], inplace=True)
+# reduced_df = shuffle(reduced_df)
+
 #Split dataset in train set and test set
-# y = final_df["class"]
-# X = final_df.drop(columns=['class']).values
 y = reduced_df["class"]
 X = reduced_df.drop(columns=['class']).values
+# y = final_df["class"]
+# X = final_df.drop(columns=['class']).values
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-
-"""#KFold Stratification
-df_data = final_df.iloc[:,:-1]
-df_class = final_df.iloc[:,-1] # target -> 'class'
-skf = StratifiedKFold(n_splits=3, random_state=42, shuffle=True)
-for train, test in skf.split(df_data, df_class):
-    strat_train_set = final_df.loc[train]
-    strat_test_set = final_df.loc[test]
-
-if show_data_analysis:
-    countplot_bars(strat_train_set,'Target Train distribution')
-    countplot_bars(strat_test_set,'Target Test distribution')
-
-y_train = strat_train_set['class']
-X_train = strat_train_set.drop(columns=['class']).values
-
-y_test = strat_test_set["class"]
-X_test = strat_test_set.drop(columns=['class']).values"""
 
 scaler = StandardScaler().fit(X_train)
 X_train = scaler.transform(X_train)
@@ -306,23 +321,23 @@ print("\n---------- Elapsed time for EDA & pre-processing:",timedelta(seconds=en
 """----------------------------------------------------------------------------------------------------"""
 #%%
 """--------------------------------------- #2 - CV : GridSearch ---------------------------------------"""
-models = [LogisticRegression(class_weight='balanced', random_state=42),
-          SVC(class_weight='balanced', probability=True, random_state=42),
-          KNeighborsClassifier(weights='distance'),
-          DecisionTreeClassifier(class_weight='balanced', random_state=42)]
+models = [KNeighborsClassifier(weights='distance'),
+          DecisionTreeClassifier(class_weight='balanced', random_state=42),
+          LogisticRegression(multi_class='multinomial', solver='saga', class_weight='balanced', random_state=42),
+          SVC(class_weight='balanced', probability=True, random_state=42)]
           
-models_names = ['Softmax Regression',
-                'Support Vector Machine',
-                'K Nearest Neighbors',
-                'Decision Tree']
+models_names = ['K-Nearest Neighbors',
+                'Decision Tree',
+                'Softmax Regression',
+                'Support Vector Machine']
 
-models_hparams = [{'solver': ['saga'], 'penalty': ['l1', 'l2'], 'C': [1e-4, 1e-1, 1.0, 1e1, 1e2]},
+models_hparams = [{'n_neighbors': list(range(1, 10, 2))},
                   
-                  {'C': [1e-4, 1e-2, 1.0, 1e1, 1e2], 'gamma': ['scale', 1e-2, 1e-3, 1e-4, 1e-5], 'kernel': ['linear', 'rbf']},
+                  {'max_depth' : [3, 4, 5, 7, 10], 'criterion': ['gini', 'entropy']},
                   
-                  {'n_neighbors': list(range(1, 10, 2))},
+                  {'penalty': ['l1', 'l2'], 'C': [1e-5, 5e-5, 1e-4, 5e-4, 1.0]},
                   
-                  {'max_depth' : [3, 4, 5, 7, 10], 'criterion': ['gini', 'entropy']}]
+                  {'C': [1e-4, 1e-2, 1.0, 1e1, 1e2], 'gamma': ['scale', 1e-4, 1e-3, 1e-2], 'kernel': ['linear', 'rbf']}]                
 
 chosen_hparams = list()
 estimators = list()
@@ -339,59 +354,69 @@ for model, model_name, hparams in zip(models, models_names, models_hparams):
         
         for hparam in hparams:
             print('\n---> best value for hyperparameter', hparam, ': ', clf.best_params_.get(hparam))
-        print('\n---> Accuracy:  ', clf.best_score_)
-            
         print('\n---------- Elapsed time for GridSearch: ', timedelta(seconds=ending_time - starting_time), "\n\n")
+
+final_estimators = list()
+
+for model_est in estimators:
+    model_name = model_est[0]
+    model = model_est[2]
+    scores = cross_validate(model, X_train, y_train, cv=7, scoring=('f1_weighted', 'accuracy'))
+    print('---> The cross-validated Accuracy of', model_name, '  is: ', np.mean(scores['test_accuracy']))
+    print('---> The cross-validated F1-Score of', model_name, '  is: ', np.mean(scores['test_f1_weighted']),'\n')
+    final_estimators.append((model_name, np.mean(scores['test_f1_weighted']), np.mean(scores['test_accuracy']), model))
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
 """------------------------------------------- #3 - Ensemble ------------------------------------------"""
-# Sort estimators by the balanced accuracy metric
-estimators.sort(key=lambda i:i[1],reverse=True)
+#Ensemble -> StackingClassifier (w/3 weak-learners)
+final_estimators.sort(key=lambda i:i[2],reverse=True)
 
-# Get the top 3 classifiers by their accuracy metric
-top3_clfs = list()
-for clf in estimators[0:3]:
-    top3_clfs.append((clf[0], clf[2]))
+print('The Stacking Classifier is made with :')
+
+best_clfs = list()
+for clf in final_estimators[0:3]:
+    best_clfs.append((clf[0], clf[3]))
+    print(clf[0])
     
-# Instantiate the Stacking Classifier with the top 3 weak learners
-clf_stack = StackingClassifier(estimators = top3_clfs, final_estimator = LogisticRegression())
+clf_stack = StackingClassifier(estimators = best_clfs, final_estimator = LogisticRegression())
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
 """--------------------------------- #4 - CV : Performance Evaluation ---------------------------------"""
 print("\n************ Stacking Model ************")
-# Cross Validation for Stacking Ensemble
+
 scores = cross_validate(clf_stack, X_train, y_train, cv=7, scoring=('f1_weighted', 'accuracy'))
-#print('---> Cross-validated Accuracy of Stacking Model is ', np.mean(scores['test_score']))
-print('The cross-validated weighted F1-score of the Stacking Ensemble is ', np.mean(scores['test_f1_weighted']))
-print('The cross-validated Accuracy of the Stacking Ensemble is ', np.mean(scores['test_accuracy']))
+print('---> Cross-validated Accuracy of Stacking Model is ', np.mean(scores['test_accuracy']),)
+print('---> Cross-validated F1-Score of Stacking Model is ', np.mean(scores['test_f1_weighted']), '\n')
 
-estimators.append( ('Stacking Classifier', np.mean(scores['test_accuracy']), clf_stack))
+final_estimators.append(('Stacking Classifier', np.mean(scores['test_f1_weighted']), np.mean(scores['test_accuracy']), clf_stack))
 
-"""----------------------------------------------------------------------------------------------------"""
-#%%
-"""----------------------------------------- #4 - Final Model -----------------------------------------"""
-estimators.sort(key=lambda i:i[1],reverse=True)
-final_model = estimators[0][2]
-final_model_accuracy = estimators[0][1]
-final_model_name = estimators[0][0]
-print('\n-----> The Final Model selected is:', final_model_name, '<-----')
+final_estimators.sort(key=lambda i:i[1],reverse=True)
+print('\n-----> The best 3 model are :')
+for model_est in final_estimators[0:3]:
+    print(model_est[0])
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""---------------------------------------- #5 - Final Training ---------------------------------------"""
+"""----------------------------------------- #5 - Final Model -----------------------------------------"""
+final_model_name = final_estimators[0][0]
+final_model = final_estimators[0][3]
+print('\n\n-----> The Final Model selected is:', final_model_name, '<-----')
+
+"""----------------------------------------------------------------------------------------------------"""
+#%%
+"""---------------------------------------- #6 - Final Training ---------------------------------------"""
 final_model.fit(X_train, y_train)
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""------------------------------------- #6 - Test [Pre-processing] -----------------------------------"""
-# Feature scaling
+"""---------------------------- #7 - Test [Pre-processing : feature scaling] --------------------------"""
 X_test = scaler.transform(X_test)
 
 """----------------------------------------------------------------------------------------------------"""
 #%%
-"""-------------------------------------------- #7 - Testing ------------------------------------------"""
+"""-------------------------------------------- #8 - Testing ------------------------------------------"""
 y_pred = final_model.predict(X_test)
 
 print('\n----------------------------> FINAL TESTING <----------------------------')
@@ -402,13 +427,14 @@ print('---> F1-Score is ', f1_score(y_test, y_pred, average='weighted'))
 
 """----------------------------------------------------------------------------------------------------"""
 #%%    
-"""--------------------------------------- #8 - Confusion Matrix --------------------------------------"""
+"""--------------------------------------- #9 - Confusion Matrix --------------------------------------"""
 if show_data_analysis:
     countplot_bars_series(y_pred,'y prediction')
     countplot_bars_series(y_test,'y test')
-    
+    cm = confusion_matrix(y_test, y_pred)
     plot_conf_matrix(y_test, y_pred)
 
+print('\n\n', skm.classification_report(y_test,y_pred), '\n\n')
 #%%
 
 
